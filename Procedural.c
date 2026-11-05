@@ -77,10 +77,6 @@ int undoStackData[50][7];
 int killerMoves[50];
 int history[500][10];
 
-typedef struct {
-    char string[3];
-} StringSizeTwo;
-
 int main() {
     printf("Initializing... ");
     initialize();
@@ -105,12 +101,10 @@ unsigned long long largeRand(void) {
 int parseSquare(char alpha, char numeric) {
     return (numeric - 49) * 8 + (alpha - 97);
 }
-StringSizeTwo parseSquareId(int id) {
-    StringSizeTwo output;
-    output.string[0] = (getX(id) + 97);
-    output.string[1] = (getY(id) + 49);
-    output.string[2] = '\0';
-    return output;
+void parseSquareID(int squareid, char template[]) {
+    template[0] = getX(squareid) + 97;
+    template[1] = getY(squareid) + 49;
+    template[2] = '\0';
 }
 static inline int getX(int square) {
     return (square % 8);
@@ -182,6 +176,54 @@ int closestEdge(int square) {
     //...
     return output;
 }
+void unserialize(unsigned long long bitboard, int template[]) {
+    if (bitboard == 0) return;
+    int i = 0;
+    while (bitboard != 0) {
+        template[i++] = __builtin__ctzll(bitboard);
+        bitboard &= (bitboard - 1);
+    }
+}
+unsigned long long fill(int square, unsigned long long pieces, int dx[], int dy[]) {
+    unsigned long long output = 1U << square;
+    for (int i = 0; i < dx.length; i++) {
+        int currentX = square % 8 + dx[i];
+        int currentY = square / 8 + dy[i];
+        while (currentX >= 0 && currentX < 8 && currentY >= 0 && currentY < 8) {
+            unsigned long long addition = 1U << (currentX + 8 * currentY);
+            output |= addition;
+            if ((addition & pieces) != 0) break;
+            currentX += dx[i];
+            currentY += dy[i];
+        }
+    }
+    return output;
+}
+int occupancyIndex(long occupancy, long mask) {
+    int index = 0;
+    int bitIndex = 0;
+    while (mask != 0) {
+        unsigned long long bit = mask & -mask;
+        if ((ocupancy & bit) != 0) index |= (1 << bitIndex);
+        mask ^= bit;
+        bitIndex++;
+    }
+    return index;
+}
+void createSliderTable(int square, unsigned long long mask, int dx[], int dy[], unsigned long long template[]) {
+    for (int index = 0; index < attacks.length; index++) {
+        unsigned long long occupancy = 0U;
+        unsigned long long remainingMask = mask;
+        int bitIndex = 0;
+        while (remainingMask != 0) {
+            unsigned long long bit = remainingMask & -remainingMask;
+            if ((index & (1 << bitIndex)) != 0) occupancy |= bit;
+            remainingMask ^= bit;
+            bitIndex++;
+        }
+        attacks[index] = fill(square, occupancy, dx, dy);
+    }
+}
 unsigned long long getZobrist(unsigned long long boards[], int extraData[]) {
     unsigned long long out = EMPTY_SEED;
     for (int i = 0; i < 12; i++) {
@@ -195,4 +237,3 @@ unsigned long long getZobrist(unsigned long long boards[], int extraData[]) {
     if (extraData[5] != 0) out ^= zobrist[extraData[5]][12];
     return out;
 }
-
